@@ -1,1 +1,96 @@
+b724f483-e9ee-4171-bab9-e4fe8e868384
+LabUser-60220804@LODSPRODMSLEARNMCA.onmicrosoft.com
+Kn2Ba9!!Jd3n
+k9cUsuaR
+
+az group create --name myResourceGroup --location eastus
+resourceGroup=myResourceGroup
+location=eastus
+appConfigName=appconfigname60220804
+
+echo $appConfigName
+
+az provider register --namespace Microsoft.AppConfiguration
+
+az provider show --namespace Microsoft.AppConfiguration --query "registrationState"
+
+az appconfig create --location $location \
+    --name $appConfigName \
+    --resource-group $resourceGroup \
+    --sku Free
+
+Use Developer if Free did not work.
+
+userPrincipal=$(az rest --method GET --url https://graph.microsoft.com/v1.0/me \
+    --headers 'Content-Type=application/json' \
+    --query userPrincipalName --output tsv)
+
+resourceID=$(az appconfig show --resource-group $resourceGroup \
+    --name $appConfigName --query id --output tsv)
+
+az role assignment create --assignee $userPrincipal \
+    --role "App Configuration Data Reader" \
+    --scope $resourceID
+
+az appconfig kv set --name $appConfigName \
+    --key Dev:conStr \
+    --value connectionString \
+    --yes
+
+"value": "connectionString"
+
+mkdir appconfig
+cd appconfig
+
+dotnet new console
+
+dotnet add package Azure.Identity
+dotnet add package Microsoft.Extensions.Configuration.AzureAppConfiguration
+
+code Program.cs
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Azure.Identity;
+
+// Set the Azure App Configuration endpoint, replace YOUR_APP_CONFIGURATION_NAME
+// with the name of your actual App Configuration service
+
+string endpoint = "https://YOUR_APP_CONFIGURATION_NAME.azconfig.io"; 
+
+// Configure which authentication methods to use
+// DefaultAzureCredential tries multiple auth methods automatically
+DefaultAzureCredentialOptions credentialOptions = new()
+{
+    ExcludeEnvironmentCredential = true,
+    ExcludeManagedIdentityCredential = true
+};
+
+// Create a configuration builder to combine multiple config sources
+var builder = new ConfigurationBuilder();
+
+// Add Azure App Configuration as a source
+// This connects to Azure and loads configuration values
+builder.AddAzureAppConfiguration(options =>
+{
+
+    options.Connect(new Uri(endpoint), new DefaultAzureCredential(credentialOptions));
+});
+
+// Build the final configuration object
+try
+{
+    var config = builder.Build();
+
+    // Retrieve a configuration value by key name
+    Console.WriteLine(config["Dev:conStr"]);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error connecting to Azure App Configuration: {ex.Message}");
+}
+
+az login
+
+dotnet run
 
